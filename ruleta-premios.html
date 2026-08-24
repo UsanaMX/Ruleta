@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ruleta de Premios</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --panel: #16213e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --text: #eaeaea;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    touch-action: manipulation;
+    overscroll-behavior: none;
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(135deg, var(--bg), #0f0f1e);
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 60px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input[type="text"], input[type="number"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  h1 {
+    font-size: 1.5rem;
+    margin: 0 0 20px;
+    text-align: center;
+  }
+  .wheel-wrap {
+    position: relative;
+    width: min(90vw, 380px);
+    height: min(90vw, 380px);
+    margin-bottom: 20px;
+  }
+  #wheel {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 6px solid var(--accent2);
+    box-shadow: 0 0 25px rgba(233,69,96,0.4);
+    transition: transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+  }
+  .pointer {
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 14px solid transparent;
+    border-right: 14px solid transparent;
+    border-top: 26px solid var(--accent);
+    z-index: 5;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+  }
+  #spinBtn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 18px 50px;
+    font-size: 1.25rem;
+    font-weight: bold;
+    border-radius: 30px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(233,69,96,0.4);
+    transition: transform 0.15s;
+    min-height: 56px;
+    min-width: 160px;
+  }
+  #spinBtn:active { transform: scale(0.95); }
+  #spinBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #result {
+    margin-top: 18px;
+    font-size: 1.3rem;
+    font-weight: bold;
+    min-height: 32px;
+    text-align: center;
+    color: var(--accent);
+  }
+
+  .panel {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 18px;
+    width: min(90vw, 420px);
+    margin-top: 30px;
+  }
+  .panel h2 {
+    font-size: 1.05rem;
+    margin: 0 0 12px;
+  }
+  .prize-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+  }
+  .prize-row input[type="text"] {
+    flex: 1;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #333;
+    background: #0f0f1e;
+    color: var(--text);
+  }
+  .prize-row input[type="color"] {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 6px;
+    padding: 0;
+    background: none;
+    cursor: pointer;
+  }
+  .prize-row button {
+    background: #333;
+    color: white;
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  .panel-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .panel-actions button {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  #addPrize { background: var(--accent2); color: white; }
+  #applyPrizes { background: var(--accent); color: white; }
+
+  .hint {
+    font-size: 0.78rem;
+    color: #999;
+    margin-top: 10px;
+    line-height: 1.4;
+  }
+
+  #adminHistory {
+    width: min(90vw, 420px);
+    margin-top: 20px;
+  }
+  #adminHistory h2 { font-size: 1.05rem; margin-bottom: 10px; }
+  #historyList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  #historyList li {
+    background: var(--panel);
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  #historyList span.time { color: #888; font-size: 0.78rem; }
+</style>
+</head>
+<body>
+
+<div id="loginOverlay" style="display:none; position:fixed; inset:0; background:rgba(10,10,20,0.96); z-index:100; align-items:center; justify-content:center; flex-direction:column;">
+  <div style="background:var(--panel); padding:28px 24px; border-radius:14px; width:min(85vw,320px); text-align:center;">
+    <h2 style="margin:0 0 16px; font-size:1.1rem;">🔒 Acceso administrador</h2>
+    <input id="loginUser" type="text" placeholder="Usuario" autocomplete="off" style="width:100%; padding:10px; margin-bottom:10px; border-radius:6px; border:1px solid #333; background:#0f0f1e; color:var(--text); box-sizing:border-box;">
+    <input id="loginPass" type="password" placeholder="Contraseña" autocomplete="off" style="width:100%; padding:10px; margin-bottom:14px; border-radius:6px; border:1px solid #333; background:#0f0f1e; color:var(--text); box-sizing:border-box;">
+    <button id="loginBtn" style="width:100%; padding:12px; border:none; border-radius:8px; background:var(--accent); color:white; font-weight:bold; cursor:pointer;">Entrar</button>
+    <div id="loginError" style="color:var(--accent); font-size:0.85rem; margin-top:10px; min-height:16px;"></div>
+  </div>
+</div>
+
+<h1>🎡 Ruleta de Premios</h1>
+
+<div class="wheel-wrap">
+  <div class="pointer"></div>
+  <canvas id="wheel" width="380" height="380"></canvas>
+</div>
+
+<button id="spinBtn">GIRAR</button>
+<div id="result"></div>
+
+<div class="panel" id="adminPanel">
+  <h2>Editar premios</h2>
+  <div id="prizeList"></div>
+  <div class="panel-actions">
+    <button id="addPrize">+ Añadir premio</button>
+    <button id="applyPrizes">Guardar y aplicar</button>
+  </div>
+  <div class="hint">
+    Ajusta el "peso" (probabilidad relativa) de cada premio: un peso de 2 significa el doble de probabilidad que uno de peso 1. Deja el peso en blanco para probabilidad igual (1).
+    <br><br>⚠️ Esta pantalla de edición solo se ve porque abriste el enlace con <code>?admin=1</code>. Los clientes que abran el enlace normal NO verán esta sección.
+  </div>
+</div>
+
+<div class="panel" id="adminHistory">
+  <h2>Historial de giros</h2>
+  <ul id="historyList"></ul>
+</div>
+
+<script>
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const spinBtn = document.getElementById('spinBtn');
+const resultEl = document.getElementById('result');
+const prizeListEl = document.getElementById('prizeList');
+const historyList = document.getElementById('historyList');
+
+// ---- Sonido (Web Audio API, sin archivos externos) ----
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTick() {
+  const ac = getAudioCtx();
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+  osc.type = 'square';
+  osc.frequency.value = 900;
+  gain.gain.setValueAtTime(0.15, ac.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.06);
+  osc.connect(gain);
+  gain.connect(ac.destination);
+  osc.start();
+  osc.stop(ac.currentTime + 0.06);
+}
+
+function playWinSound() {
+  const ac = getAudioCtx();
+  const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+  notes.forEach((freq, i) => {
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    const start = ac.currentTime + i * 0.12;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.25, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.35);
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.start(start);
+    osc.stop(start + 0.4);
+  });
+}
+
+let tickTimeoutId = null;
+function scheduleTicks(totalDurationMs) {
+  let elapsed = 0;
+  let interval = 45;
+  function tick() {
+    if (elapsed >= totalDurationMs - 150) return;
+    playTick();
+    elapsed += interval;
+    interval *= 1.07; // se va desacelerando, como una ruleta real
+    tickTimeoutId = setTimeout(tick, interval);
+  }
+  tick();
+}
+
+// ---- Modo admin vs. modo cliente (con usuario y contraseña) ----
+// Abre el archivo agregando ?admin=1 al final de la URL para ver la pantalla de acceso.
+// Credenciales por defecto: usuario "admin", contraseña "RuletaAdmin2026"
+// Para cambiar la contraseña: genera un nuevo hash SHA-256 y reemplaza ADMIN_PASS_HASH abajo.
+const ADMIN_USER = 'admin';
+const ADMIN_PASS_HASH = '69f7749c16f32f1f2c005470f7c5006969df43af7279f13b4c8b51aeedcbbed3';
+
+async function sha256(text) {
+  const data = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const wantsAdmin = new URLSearchParams(window.location.search).get('admin') === '1';
+let isAdmin = false;
+
+function hideAdminUI() {
+  document.getElementById('adminPanel').style.display = 'none';
+  document.getElementById('adminHistory').style.display = 'none';
+}
+function showAdminUI() {
+  document.getElementById('adminPanel').style.display = 'block';
+  document.getElementById('adminHistory').style.display = 'block';
+}
+
+hideAdminUI();
+
+if (wantsAdmin) {
+  // ¿Ya inició sesión en esta pestaña/sesión?
+  if (sessionStorage.getItem('ruletaAdminAuth') === '1') {
+    isAdmin = true;
+    showAdminUI();
+  } else {
+    const overlay = document.getElementById('loginOverlay');
+    overlay.style.display = 'flex';
+    document.getElementById('loginBtn').addEventListener('click', tryLogin);
+    document.getElementById('loginPass').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') tryLogin();
+    });
+  }
+}
+
+async function tryLogin() {
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  const passHash = await sha256(pass);
+  if (user === ADMIN_USER && passHash === ADMIN_PASS_HASH) {
+    isAdmin = true;
+    sessionStorage.setItem('ruletaAdminAuth', '1');
+    document.getElementById('loginOverlay').style.display = 'none';
+    showAdminUI();
+  } else {
+    errEl.textContent = 'Usuario o contraseña incorrectos.';
+    document.getElementById('loginPass').value = '';
+  }
+}
+
+// ---- Guardar/cargar premios en este dispositivo ----
+const STORAGE_KEY = 'ruletaPremiosConfig';
+function savePrizes() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prizes));
+  } catch (e) { /* almacenamiento no disponible, se ignora */ }
+}
+function loadSavedPrizes() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length >= 2) return parsed;
+    }
+  } catch (e) { /* ignorar y usar valores por defecto */ }
+  return null;
+}
+
+let prizes = loadSavedPrizes() || [
+  { text: 'Premio 1', color: '#e94560', weight: 1 },
+  { text: 'Premio 2', color: '#0f3460', weight: 1 },
+  { text: 'Premio 3', color: '#16213e', weight: 1 },
+  { text: 'Inténtalo de nuevo', color: '#533483', weight: 1 },
+  { text: 'Premio 4', color: '#e94560', weight: 1 },
+  { text: 'Premio 5', color: '#0f3460', weight: 1 },
+];
+
+let currentRotation = 0;
+let spinning = false;
+
+function renderPrizeInputs() {
+  prizeListEl.innerHTML = '';
+  prizes.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'prize-row';
+    row.innerHTML = `
+      <input type="color" value="${p.color}" data-idx="${i}" data-field="color">
+      <input type="text" value="${p.text}" data-idx="${i}" data-field="text" placeholder="Nombre del premio">
+      <input type="number" min="0" step="0.1" value="${p.weight}" data-idx="${i}" data-field="weight" style="width:55px" title="Peso/probabilidad">
+      <button data-idx="${i}" data-action="remove">✕</button>
+    `;
+    prizeListEl.appendChild(row);
+  });
+}
+
+prizeListEl.addEventListener('input', (e) => {
+  const idx = e.target.dataset.idx;
+  const field = e.target.dataset.field;
+  if (idx === undefined || !field) return;
+  if (field === 'weight') {
+    prizes[idx][field] = parseFloat(e.target.value) || 0;
+  } else {
+    prizes[idx][field] = e.target.value;
+  }
+});
+
+prizeListEl.addEventListener('click', (e) => {
+  if (e.target.dataset.action === 'remove') {
+    const idx = e.target.dataset.idx;
+    if (prizes.length > 2) {
+      prizes.splice(idx, 1);
+      renderPrizeInputs();
+    } else {
+      alert('Debe haber al menos 2 premios.');
+    }
+  }
+});
+
+document.getElementById('addPrize').addEventListener('click', () => {
+  const colors = ['#e94560', '#0f3460', '#16213e', '#533483', '#ff9f1c', '#2ec4b6'];
+  prizes.push({ text: 'Nuevo premio', color: colors[prizes.length % colors.length], weight: 1 });
+  renderPrizeInputs();
+});
+
+document.getElementById('applyPrizes').addEventListener('click', () => {
+  savePrizes();
+  drawWheel();
+  alert('Premios guardados. Los clientes verán esta ruleta actualizada.');
+});
+
+function drawWheel() {
+  const size = canvas.width;
+  const center = size / 2;
+  const radius = size / 2 - 4;
+  const sliceAngle = (2 * Math.PI) / prizes.length;
+
+  ctx.clearRect(0, 0, size, size);
+
+  prizes.forEach((p, i) => {
+    const startAngle = i * sliceAngle;
+    const endAngle = startAngle + sliceAngle;
+
+    ctx.beginPath();
+    ctx.moveTo(center, center);
+    ctx.arc(center, center, radius, startAngle, endAngle);
+    ctx.closePath();
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.strokeStyle = '#1a1a2e';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(center, center);
+    ctx.rotate(startAngle + sliceAngle / 2);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px Segoe UI, Arial';
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 3;
+    const label = p.text.length > 16 ? p.text.slice(0, 15) + '…' : p.text;
+    ctx.fillText(label, radius - 12, 5);
+    ctx.restore();
+  });
+}
+
+function pickWeightedIndex() {
+  const totalWeight = prizes.reduce((sum, p) => sum + (p.weight > 0 ? p.weight : 0), 0);
+  if (totalWeight <= 0) return Math.floor(Math.random() * prizes.length);
+  let r = Math.random() * totalWeight;
+  for (let i = 0; i < prizes.length; i++) {
+    const w = prizes[i].weight > 0 ? prizes[i].weight : 0;
+    if (r < w) return i;
+    r -= w;
+  }
+  return prizes.length - 1;
+}
+
+function addToHistory(text) {
+  const li = document.createElement('li');
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  li.innerHTML = `<span>${text}</span><span class="time">${timeStr}</span>`;
+  historyList.prepend(li);
+}
+
+let wakeLock = null;
+async function keepScreenAwake() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch (e) {
+    // Algunos navegadores/tablets no lo soportan; no es crítico.
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (wakeLock !== null && document.visibilityState === 'visible') {
+    keepScreenAwake();
+  }
+});
+
+spinBtn.addEventListener('click', () => {
+  if (spinning) return;
+  spinning = true;
+  spinBtn.disabled = true;
+  resultEl.textContent = '';
+  keepScreenAwake();
+
+  const sliceAngle = 360 / prizes.length;
+  const winningIndex = pickWeightedIndex();
+
+  // El puntero apunta hacia arriba (0°). Calculamos el ángulo para que
+  // el centro del segmento ganador quede alineado con el puntero.
+  const targetSliceCenter = winningIndex * sliceAngle + sliceAngle / 2;
+  const extraSpins = 5 + Math.floor(Math.random() * 3); // 5-7 vueltas completas
+  const randomOffset = (Math.random() - 0.5) * (sliceAngle * 0.6); // pequeña variación dentro del segmento
+
+  const finalRotation = currentRotation + extraSpins * 360 + (360 - targetSliceCenter) + randomOffset;
+
+  currentRotation = finalRotation;
+  canvas.style.transform = `rotate(${finalRotation}deg)`;
+
+  scheduleTicks(5100);
+
+  setTimeout(() => {
+    spinning = false;
+    spinBtn.disabled = false;
+    const prize = prizes[winningIndex];
+    resultEl.textContent = `🎉 ${prize.text}`;
+    addToHistory(prize.text);
+    playWinSound();
+  }, 5100);
+});
+
+renderPrizeInputs();
+drawWheel();
+</script>
+
+</body>
+</html>
