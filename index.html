@@ -522,15 +522,33 @@ spinBtn.addEventListener('click', () => {
   keepScreenAwake();
 
   const sliceAngle = 360 / prizes.length;
-  const winningIndex = pickWeightedIndex();
 
-  // El puntero apunta hacia arriba (0°). Calculamos el ángulo para que
-  // el centro del segmento ganador quede alineado con el puntero.
-  const targetSliceCenter = winningIndex * sliceAngle + sliceAngle / 2;
+  // Utilidad: módulo que siempre da un resultado positivo (0-359.999...)
+  const mod360 = (deg) => ((deg % 360) + 360) % 360;
+
+  // Elegimos el premio ganador por peso/probabilidad.
+  const chosenIndex = pickWeightedIndex();
+  const targetSliceCenter = chosenIndex * sliceAngle + sliceAngle / 2;
   const extraSpins = 5 + Math.floor(Math.random() * 3); // 5-7 vueltas completas
-  const randomOffset = (Math.random() - 0.5) * (sliceAngle * 0.6); // pequeña variación dentro del segmento
+  // Offset aleatorio pequeño dentro del segmento (nunca cerca del borde)
+  const maxOffset = sliceAngle * 0.35;
+  const randomOffset = (Math.random() - 0.5) * maxOffset;
 
-  const finalRotation = currentRotation + extraSpins * 360 + (270 - targetSliceCenter) + randomOffset;
+  // IMPORTANTE: la rotación total (currentRotation) se acumula giro tras
+  // giro para que la rueda siempre avance hacia adelante. Pero eso significa
+  // que, a partir del segundo giro, currentRotation casi nunca es un múltiplo
+  // exacto de 360°. Si simplemente le sumamos "(270 - targetSliceCenter)"
+  // (como hacía la versión anterior), el "sobrante" de grados de la rotación
+  // previa se traslada al nuevo giro y el segmento que queda bajo el puntero
+  // ya NO es el que se sorteó. Por eso, en vez de sumar ese valor directo,
+  // calculamos el "residuo" que hace falta agregar para que el segmento
+  // elegido termine exactamente bajo el puntero (arriba, 270°), sin importar
+  // en qué múltiplo de 360° estemos parados actualmente.
+  const desiredResidue = mod360(270 - targetSliceCenter);
+  const currentResidue = mod360(currentRotation);
+  const deltaResidue = mod360(desiredResidue - currentResidue);
+
+  const finalRotation = currentRotation + extraSpins * 360 + deltaResidue + randomOffset;
 
   currentRotation = finalRotation;
   canvas.style.transform = `rotate(${finalRotation}deg)`;
@@ -540,6 +558,17 @@ spinBtn.addEventListener('click', () => {
   setTimeout(() => {
     spinning = false;
     spinBtn.disabled = false;
+
+    // El premio mostrado se calcula directamente del ángulo final real
+    // de la rueda (no del "chosenIndex" de arriba), como segunda garantía
+    // de que el texto coincida exactamente con el segmento bajo el puntero,
+    // incluso si en el futuro se modifica la fórmula de arriba.
+    const normalized = mod360(finalRotation);
+    const angleUnderPointer = mod360(270 - normalized);
+    let winningIndex = Math.floor(angleUnderPointer / sliceAngle);
+    if (winningIndex >= prizes.length) winningIndex = prizes.length - 1;
+    if (winningIndex < 0) winningIndex = 0;
+
     const prize = prizes[winningIndex];
     resultEl.textContent = `🎉 ${prize.text}`;
     addToHistory(prize.text);
