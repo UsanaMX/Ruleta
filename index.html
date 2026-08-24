@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Ruleta <strong>USANA</strong></title>
+<title>Ruleta de Premios</title>
 <style>
   :root {
     --bg: #1a1a2e;
@@ -423,6 +423,21 @@ document.getElementById('applyPrizes').addEventListener('click', () => {
   alert('Premios guardados. Los clientes verán esta ruleta actualizada.');
 });
 
+function fitText(context, text, maxWidth) {
+  if (context.measureText(text).width <= maxWidth) return text;
+  let low = 0, high = text.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    const candidate = text.slice(0, mid) + '…';
+    if (context.measureText(candidate).width <= maxWidth) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return low > 0 ? text.slice(0, low) + '…' : '…';
+}
+
 function drawWheel() {
   const size = canvas.width;
   const center = size / 2;
@@ -430,6 +445,10 @@ function drawWheel() {
   const sliceAngle = (2 * Math.PI) / prizes.length;
 
   ctx.clearRect(0, 0, size, size);
+
+  // Más premios = fuente más pequeña, para que quepan mejor
+  const fontSize = Math.max(9, Math.min(14, Math.round(16 - prizes.length * 0.35)));
+  const maxTextWidth = radius - 46; // deja margen cerca del centro y del borde
 
   prizes.forEach((p, i) => {
     const startAngle = i * sliceAngle;
@@ -450,11 +469,11 @@ function drawWheel() {
     ctx.rotate(startAngle + sliceAngle / 2);
     ctx.textAlign = 'right';
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 14px Segoe UI, Arial';
+    ctx.font = `bold ${fontSize}px Segoe UI, Arial`;
     ctx.shadowColor = 'rgba(0,0,0,0.6)';
     ctx.shadowBlur = 3;
-    const label = p.text.length > 16 ? p.text.slice(0, 15) + '…' : p.text;
-    ctx.fillText(label, radius - 12, 5);
+    const label = fitText(ctx, p.text, maxTextWidth);
+    ctx.fillText(label, radius - 12, fontSize / 4);
     ctx.restore();
   });
 }
@@ -511,7 +530,7 @@ spinBtn.addEventListener('click', () => {
   const extraSpins = 5 + Math.floor(Math.random() * 3); // 5-7 vueltas completas
   const randomOffset = (Math.random() - 0.5) * (sliceAngle * 0.6); // pequeña variación dentro del segmento
 
-  const finalRotation = currentRotation + extraSpins * 360 + (360 - targetSliceCenter) + randomOffset;
+  const finalRotation = currentRotation + extraSpins * 360 + (270 - targetSliceCenter) + randomOffset;
 
   currentRotation = finalRotation;
   canvas.style.transform = `rotate(${finalRotation}deg)`;
